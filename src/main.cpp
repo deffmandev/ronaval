@@ -14,8 +14,8 @@
 #include "SD.h"
 #include "SPI.h"
 
-const char* ssid     = "Freebox-60C211";
-const char* password = "Q8PChatTz04762199Mi@8A"; 
+const char* ssid     = "";
+const char* password = ""; 
 
 String server = "https://alize38.fr/ronaval/in.php";  
 String FileName="/test.txt";
