@@ -14,8 +14,8 @@
 #include "SD.h"
 #include "SPI.h"
 
-const char* ssid     = "";
-const char* password = ""; 
+const char* ssid     = "Alize4GESP";
+const char* password = "DeffAlizeR4D"; 
 
 String server = "https://alize38.fr/ronaval/in.php";  
 String FileName="/test.txt";
@@ -36,7 +36,11 @@ int numberOfDevices;
 
 String temperature;
 String Datafile;
-
+unsigned long currentMillis;
+uint64_t pouruser;
+String Date;
+String Time="00:00";
+String Ip;
 
 void setup() 
 {
@@ -50,7 +54,7 @@ void setup()
   oled.setTextSize(1);    
   oled.setTextColor(SH110X_WHITE);
   oled.setCursor(5, 5);
-  oled.println(F("RONAVAL")); 
+  oled.println(F("  ")); 
   oled.display();
 
   //Carte SD Detecte
@@ -71,8 +75,19 @@ void setup()
         return;
     }
     uint64_t cardSize = SD.cardSize() / (1024 * 1024);
+    uint64_t cardtail = SD.totalBytes() / (1024 * 1024);
+    uint64_t userspace = SD.usedBytes() / (1024 * 1024);
+    pouruser=(userspace*100)/cardtail;
+    pouruser=100-pouruser;
+    
+
     Serial.printf("SD Card Size: %lluMB\n", cardSize);
-    oled.println(cardSize); 
+    oled.print(userspace); 
+    oled.print(" / "); 
+    oled.print(cardtail); 
+    oled.print("   "); 
+    oled.print(pouruser);
+    oled.println("%");
     oled.display();
 
     DS18B20.begin(); 
@@ -90,7 +105,6 @@ void setup()
   while (WiFi.waitForConnectResult() != WL_CONNECTED) {
     Serial.println("Connection Failed! Rebooting...");
     delay(5000);
-  ESP.restart();
   }
   
   Serial.print("Connected to ");
@@ -104,6 +118,8 @@ void setup()
   Serial.println(server);
   http.begin(server);
   http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+
+  currentMillis = millis()-60000;
 }
 
 void appendFile(fs::FS &fs, String path, String message){
@@ -151,7 +167,7 @@ void loop() {
   oled.setCursor(0, 30);
   DS18B20.requestTemperatures();             // send the command to get temperatures
 
-  Datafile="";
+  Datafile=String(pouruser)+",";
 
   for (int j=0; j<numberOfDevices;j++)
   {
@@ -168,23 +184,42 @@ void loop() {
   }
 
 
-  Serial.println(Datafile);
-  Serial.println("  ");
-
-                appendFile(SD, FileName, Datafile+="\n");
-
+  //Serial.println(Datafile);
   oled.display();
+
+
+if (millis()-currentMillis > 60000) 
+{
+    currentMillis = millis();
+
+    appendFile(SD, FileName, Time+","+Datafile+="\n");
+
+        uint64_t userspace = SD.usedBytes() / (1024 * 1024);
+        uint64_t cardtail = SD.totalBytes() / (1024 * 1024);
+        pouruser=(userspace*100)/cardtail;
+        pouruser=100-pouruser;
 
   
 //Envoie Au serveurs
  
   int httpCode = http.POST("test="+String(Datafile));
-
   if (httpCode > 0) {
-    if (httpCode == HTTP_CODE_OK) 
-    {
+    if (httpCode == HTTP_CODE_OK) {
       String payload = http.getString();
-      Serial.println(payload);
+      Serial.print(payload);
+      Serial.print("  ");
+      Serial.println(Datafile);
+
+      Date = explode(payload, ',', 1);
+      Time = explode(payload, ',', 2); 
+      Ip = explode(payload, ',', 0);
+
+      FileName="/"+Date+".txt";
+
+       oled.setCursor(5, 5);
+       oled.println(Ip); 
+       oled.display();
+
     } 
     else 
     {
@@ -198,11 +233,10 @@ void loop() {
 
   //http.end();
 
-delay(15000);
+
+}
+
+delay(100);
 
     
-String preloy="84.89.41.77,24/05/2066,18:44";
-String date = explode(preloy, ',', 1); // Returns "test"
-
-Serial.println(date);
 }
