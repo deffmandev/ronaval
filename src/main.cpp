@@ -20,6 +20,9 @@ const char* password = "DeffAlizeR4D";
 String server = "https://alize38.fr/ronaval/in.php";  
 String FileName="/test.txt";
 
+extern "C" uint8_t temprature_sens_read();
+
+
 #define SENSOR_PIN 13
 #define SCREEN_WIDTH 128 
 #define SCREEN_HEIGHT 64
@@ -27,20 +30,22 @@ String FileName="/test.txt";
 #define OLED_RESET -1   
 
 Adafruit_SH1106G oled = Adafruit_SH1106G(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
-OneWire oneWire(SENSOR_PIN);         // setup a oneWire instance
-DallasTemperature DS18B20(&oneWire); // pass oneWire to DallasTemperature library
+OneWire oneWire(SENSOR_PIN);         
+DallasTemperature DS18B20(&oneWire); 
 HTTPClient http;
 
-
-int numberOfDevices;
+unsigned long currentMillis;
 
 String temperature;
 String Datafile;
-unsigned long currentMillis;
-uint64_t pouruser;
 String Date;
 String Time="00:00";
 String Ip;
+
+uint64_t pouruser;
+
+int numberOfDevices;
+int Erreur=0;
 
 void setup() 
 {
@@ -122,12 +127,18 @@ void setup()
   currentMillis = millis()-60000;
 }
 
+float getCPUTemperature() 
+{
+    return (temprature_sens_read() - 32) / 1.8;
+}
+
 void appendFile(fs::FS &fs, String path, String message){
 
     File file = fs.open(path, FILE_APPEND);
     if(!file)
       {
         Serial.println("Erreur d'ajout data");
+        Erreur++;
         return;
       }
     if(file.print(message))
@@ -136,11 +147,10 @@ void appendFile(fs::FS &fs, String path, String message){
       else 
       {
         Serial.println("Append erreur");
+        Erreur++;
       }
     file.close();
 
-      //connection au serveur
-  
 }
 
 String explode(const String& input, char separator, int index) {
@@ -165,13 +175,15 @@ void loop() {
   oled.setTextSize(1);    
   oled.fillRect(0, 30, 128, 64, 0);
   oled.setCursor(0, 30);
-  DS18B20.requestTemperatures();             // send the command to get temperatures
+  DS18B20.requestTemperatures();
 
-  Datafile=String(pouruser)+",";
+  float cpuTemp = getCPUTemperature();
+
+  Datafile=String(pouruser)+","+String(cpuTemp, 1)+",";
 
   for (int j=0; j<numberOfDevices;j++)
   {
-  float tempCelsius = DS18B20.getTempCByIndex(j);  // read temperature in Celsius
+  float tempCelsius = DS18B20.getTempCByIndex(j);
 
   temperature  = String(tempCelsius, 1);
   temperature += char(247) + String("C");
@@ -184,7 +196,6 @@ void loop() {
   }
 
 
-  //Serial.println(Datafile);
   oled.display();
 
 
@@ -219,22 +230,36 @@ if (millis()-currentMillis > 60000)
        oled.setCursor(5, 5);
        oled.println(Ip); 
        oled.display();
+       Erreur=0;
 
     } 
     else 
     {
       Serial.printf("[HTTP] GET... code: %d\n", httpCode);
+      Erreur++;
     }
     } 
     else 
     {
       Serial.printf("[HTTP] GET... failed, error: %s\n", http.errorToString(httpCode).c_str());
+      Erreur++;
     }
 
-  //http.end();
-
-
 }
+
+
+if (Erreur>2)
+  {
+    oled.setTextSize(1);    
+    oled.fillRect(0, 0, 128, 64, 0);
+    oled.setCursor(0, 10);
+    oled.println("Erreur"); 
+    oled.println("Technique"); 
+    oled.println("Redemarage"); 
+    oled.display();
+    delay(6000);
+    ESP.restart();
+  }
 
 delay(100);
 
